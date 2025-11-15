@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+//
+// ================================================
+// User（基础账号 + 登录）
+// ================================================
+model User {
+  id       Int      @id @default(autoincrement())
+  name     String
+  phone    String?
+  email    String   @unique
+  password String?
+  state    String?
+  role     UserRole @default(USER)
+
+  influencer Influencer?
+  advertiser Advertiser?
+
+  referralsFrom Referral[] @relation("Referrer")
+  referralsTo   Referral[] @relation("Referred")
+
+  commissionsFrom Commission[] @relation("CommissionFrom")
+  commissionsTo   Commission[] @relation("CommissionTo")
+
+  purchases Purchase[]
+  payouts   Payout[]
+
+  pools Pool[] // ⭐ 必须加，否则 Pool → User 无反向关系
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum UserRole {
+  USER
+  INFLUENCER
+  ADVERTISER
+  AGENT
+  ADMIN
+}
+
+//
+// ================================================
+// Package（配套表）
+// ================================================
+model Package {
+  id          Int         @id @default(autoincrement())
+  name        String
+  packageType PackageType
+  price       Decimal     @default(0.00) @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[]
+}
+
+enum PackageType {
+  AGENT
+  ADVERTISER
+  INFLUENCER
+}
+
+//
+// ================================================
+// Influencer（资料）
+// ================================================
+model Influencer {
+  id            Int          @id @default(autoincrement())
+  userId        Int          @unique
+  shortBio      String?
+  longBio       String?
+  price         Decimal?     @db.Decimal(10, 2)
+  totalFollower Int?
+  topPlatform   String?
+  status        ReviewStatus @default(PENDING)
+  rejectReason  String?
+
+  images InfluencerImage[]
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model InfluencerImage {
+  id           Int    @id @default(autoincrement())
+  influencerId Int
+  imageUrl     String
+
+  influencer Influencer @relation(fields: [influencerId], references: [id])
+}
+
+//
+// ================================================
+// Advertiser（资料）
+// ================================================
+model Advertiser {
+  id           Int          @id @default(autoincrement())
+  userId       Int          @unique
+  shortBio     String?
+  longBio      String?
+  price        Decimal?     @db.Decimal(10, 2)
+  address      String?
+  status       ReviewStatus @default(PENDING)
+  rejectReason String?
+
+  images AdvertiserImage[]
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AdvertiserImage {
+  id           Int    @id @default(autoincrement())
+  advertiserId Int
+  imageUrl     String
+
+  advertiser Advertiser @relation(fields: [advertiserId], references: [id])
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+//
+// ================================================
+// Referral
+// ================================================
+model Referral {
+  id         Int      @id @default(autoincrement())
+  referrerId Int
+  referredId Int
+  createdAt  DateTime @default(now())
+
+  referrer User @relation("Referrer", fields: [referrerId], references: [id])
+  referred User @relation("Referred", fields: [referredId], references: [id])
+}
+
+//
+// ================================================
+// Purchase
+// ================================================
+model Purchase {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  packageId Int
+  amount    Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  package Package @relation(fields: [packageId], references: [id])
+
+  commissions Commission[] @relation("PurchaseCommission")
+}
+
+//
+// ================================================
+// Commission（支持普通分佣 + Pool 分佣）
+// ================================================
+model Commission {
+  id         Int            @id @default(autoincrement())
+  fromUserId Int
+  toUserId   Int
+  purchaseId Int?
+  amount     Decimal        @db.Decimal(10, 2)
+  type       CommissionType @default(COMMISSION)
+  createdAt  DateTime       @default(now())
+
+  fromUser User @relation("CommissionFrom", fields: [fromUserId], references: [id])
+  toUser   User @relation("CommissionTo", fields: [toUserId], references: [id])
+
+  purchase Purchase? @relation("PurchaseCommission", fields: [purchaseId], references: [id])
+}
+
+enum CommissionType {
+  COMMISSION
+  POOL_5
+  POOL_10
+}
+
+//
+// ================================================
+// Pool（5% + 10% pool 累积）
+// ================================================
+model Pool {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  fivePercent Decimal  @default(0.00) @db.Decimal(10, 2)
+  tenPercent  Decimal  @default(0.00) @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+//
+// ================================================
+// Payout（提现）
+// ================================================
+model Payout {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  amount    Decimal  @db.Decimal(10, 2)
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
