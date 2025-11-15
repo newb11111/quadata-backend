@@ -1,4 +1,4 @@
-// server.js — Final Corrected Version (CORS FIXED)
+// server.js — Final Production Version
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -23,27 +23,33 @@ import payoutRoutes from "./routes/payoutRoutes.js";
 const app = express();
 
 /* ----------------------------------------------
-   🚀 STEP 1: FIX CORS (THIS IS THE IMPORTANT PART)
+ 🚀 STEP 1: CORS WHITELIST (IMPORTANT FOR CLOUDLFARE)
 ----------------------------------------------- */
 const allowedOrigins = [
+  // Local development
   "http://localhost:3000",
   "https://localhost:3000",
   "http://127.0.0.1:3000",
   "https://127.0.0.1:3000",
-  process.env.FRONTEND_URL, // optional
-  "https://alias-unlike-cabinet-possess.trycloudflare.com"
+
+  // Cloudflare Pages (your frontend)
+  "https://quadata-backend1688.pages.dev",
+  "https://quadata.my",
+
+  // Render backend domain
+  "https://quadata-backend.onrender.com"
 ];
 
+// Apply CORS
 app.use(
   cors({
     origin: function (origin, callback) {
-      // allow non-browser clients (like Postman)
-      if (!origin) return callback(null, true);
+      if (!origin) return callback(null, true); // Postman, server-side, etc.
 
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        console.log("❌ Blocked by CORS:", origin);
+        console.log("❌ CORS BLOCKED:", origin);
         callback(new Error("Not allowed by CORS"));
       }
     },
@@ -53,11 +59,11 @@ app.use(
   })
 );
 
-// allow all OPTIONS preflight
+// For preflight OPTIONS requests
 app.options("*", cors());
 
 /* ----------------------------------------------
-   Middleware
+ Middleware
 ----------------------------------------------- */
 app.use(bodyParser.json({ limit: "10mb" }));
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -66,11 +72,11 @@ if (process.env.NODE_ENV !== "production") {
   app.use(morgan("dev"));
 }
 
-// static file hosting
+// static file hosting — uploads folder
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 /* ----------------------------------------------
-   Routes
+ Routes
 ----------------------------------------------- */
 app.use("/api/auth", authRoutes);
 app.use("/api/purchase", purchaseRoutes);
@@ -84,7 +90,7 @@ app.use("/api/payout", payoutRoutes);
 app.use("/api/admin", adminRoutes);
 
 /* ----------------------------------------------
-   Health Check
+ Health Check (Render needs this)
 ----------------------------------------------- */
 app.get("/", (req, res) => {
   res.json({
@@ -95,14 +101,14 @@ app.get("/", (req, res) => {
 });
 
 /* ----------------------------------------------
-   Default 404
+ Default 404
 ----------------------------------------------- */
 app.use((req, res, next) => {
   res.status(404).json({ success: false, message: "Not Found" });
 });
 
 /* ----------------------------------------------
-   Global Error Handler
+ Global Error Handler
 ----------------------------------------------- */
 app.use((err, req, res, next) => {
   console.error("💥 GLOBAL ERROR:", err.message);
@@ -110,7 +116,7 @@ app.use((err, req, res, next) => {
 });
 
 /* ----------------------------------------------
-   Start Server
+ Start Server
 ----------------------------------------------- */
 const PORT = Number(process.env.PORT) || 5000;
 app.listen(PORT, () => {
